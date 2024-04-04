@@ -1,0 +1,365 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: grafana-loki
+ 
+---
+ 
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: loki
+#   namespace: grafana-loki
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: loki
+#   template:
+#     metadata:
+#       labels:
+#         app: loki
+#     spec:
+#       containers:
+#       - name: loki
+#         image: grafana/loki:2.9.4
+#         ports:
+#         - containerPort: 3100
+#         command: ["-config.file=/etc/loki/local-config.yaml"]
+ 
+---
+ 
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: promtail
+#   namespace: grafana-loki
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: promtail
+#   template:
+#     metadata:
+#       labels:
+#         app: promtail
+#     spec:
+#       containers:
+#       - name: promtail
+#         image: grafana/promtail:2.9.4
+#         ports:
+#         - containerPort: 3500
+#         volumeMounts:
+#         - name: varlog
+#           mountPath: /var/log
+#         - name: promtail-config
+#           mountPath: /etc/promtail
+#         command: ["-config.file=/etc/promtail/config.yml"]
+#       volumes:
+#       - name: varlog
+#         hostPath:
+#           path: /var/log
+#       - name: promtail-config
+#         configMap:
+#           name: promtail-config
+
+ 
+# ---
+ 
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: prometheus
+#   namespace: grafana-loki
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: prometheus
+#   template:
+#     metadata:
+#       labels:
+#         app: prometheus
+#     spec:
+#       containers:
+#       - name: prometheus
+#         image: prom/prometheus:v2.37.7
+#         command:
+#         - "/bin/sh"
+#         - "-c"
+#         - "chown -R 65534:65534 /prometheus"
+#         volumeMounts:
+#         - name: prometheus-data
+#           mountPath: /prometheus
+#       initContainers:
+#       - name: init-prometheus
+#         image: prom/prometheus:v2.37.7
+#         command: ["/bin/sh", "-c", "chown -R 65534:65534 /prometheus"]
+#         volumeMounts:
+#         - name: prometheus-data
+#           mountPath: /prometheus
+#       volumes:
+#       - name: prometheus-data
+#         hostPath:
+#           path: /data/prometheus
+ 
+# ---
+ 
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: prometheus
+#   namespace: grafana-loki
+# spec:
+#   selector:
+#     app: prometheus
+#   ports:
+#   - protocol: TCP
+#     port: 9090
+#     targetPort: 9090
+ 
+---
+ 
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: cadvisor
+  namespace: grafana-loki
+spec:
+  selector:
+    matchLabels:
+      app: cadvisor
+  template:
+    metadata:
+      labels:
+        app: cadvisor
+    spec:
+      containers:
+      - name: cadvisor
+        image: gcr.io/cadvisor/cadvisor
+        volumeMounts:
+        - name: rootfs
+          mountPath: /rootfs
+          readOnly: true
+        - name: varrun
+          mountPath: /var/run
+        - name: sys
+          mountPath: /sys
+          readOnly: true
+        - name: varlibdocker
+          mountPath: /var/lib/docker
+      volumes:
+      - name: rootfs
+        hostPath:
+          path: /
+      - name: varrun
+        hostPath:
+          path: /var/run
+      - name: sys
+        hostPath:
+          path: /sys
+      - name: varlibdocker
+        hostPath:
+          path: /var/lib/docker
+
+
+
+---
+ 
+apiVersion: v1
+kind: Service
+metadata:
+  name: cadvisor
+  namespace: grafana-loki
+spec:
+  selector:
+    app: cadvisor
+  ports:
+  - protocol: TCP
+    port: 8080
+    targetPort: 8080
+ 
+ 
+---
+ 
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alertmanager
+  template:
+    metadata:
+      labels:
+        app: alertmanager
+    spec:
+      containers:
+      - name: alertmanager
+        image: prom/alertmanager
+        ports:
+        - containerPort: 9093
+        # volumeMounts:
+        # - name: alertmanager-config
+        #   mountPath: /etc/alertmanager
+        # - name: alertmanager-storage
+        #   mountPath: /alertmanager
+        # command:
+        # - alertmanager
+        # - '--config.file=/etc/alertmanager/alertmanager.yml'
+        # - '--storage.path=/alertmanager'
+      # volumes:
+      # - name: alertmanager-config
+      #   hostPath:
+      #     path: /path/to/alertmanager/config
+      # - name: alertmanager-storage
+      #   emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+spec:
+  selector:
+    app: alertmanager
+  ports:
+    - protocol: TCP
+      port: 9093
+      targetPort: 9093
+ 
+---
+ 
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: pg-data-wh
+#   namespace: grafana-loki
+# spec:
+#   selector:
+#     app: pg-data-wh
+#   ports:
+#   - protocol: TCP
+#     port: 5488
+#     targetPort: 5432
+ 
+# ---
+ 
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: pg-grafana
+#   namespace: grafana-loki
+# spec:
+#   selector:
+#     app: pg-grafana
+#   ports:
+#   - protocol: TCP
+#     port: 5499
+#     targetPort: 5432
+ 
+# ---
+ 
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: grafana
+#   namespace: grafana-loki
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: grafana
+#   template:
+#     metadata:
+#       labels:
+#         app: grafana
+#     spec:
+#       containers:
+#       - name: grafana
+#         image: grafana/grafana-enterprise
+#         ports:
+#         - containerPort: 3000
+#         env:
+#         - name: GF_SERVER_ROOT_URL
+#           value: "http://rk.grafana.server/"
+#         - name: GF_INSTALL_PLUGINS
+#           value: "grafana-clock-panel,grafana-simple-json-datasource"
+#         - name: GF_DATABASE_TYPE
+#           value: "postgres"
+#         - name: GF_DATABASE_HOST
+#           value: "pg-grafana:5432"
+#         - name: GF_DATABASE_NAME
+#           value: "rk_db"
+#         - name: GF_DATABASE_USER
+#           value: "rajesh"
+#         - name: GF_DATABASE_PASSWORD
+#           value: "rajesh"
+#         - name: GF_DATABASE_SSL_MODE
+#           value: "disable"
+#         command: ["/bin/sh", "-c"]
+#         args:
+#         - >
+#           mkdir -p /etc/grafana/provisioning/datasources;
+#           echo 'apiVersion: 1
+#           datasources:
+#           - name: Loki
+#             type: loki
+#             access: proxy
+#             orgId: 1
+#             url: http://loki:3100
+#             basicAuth: false
+#             isDefault: true
+#             version: 1
+#             editable: false' > /etc/grafana/provisioning/datasources/ds.yaml;
+#           /run.sh
+#         volumeMounts:
+#         - name: grafana-storage
+#           mountPath: /var/lib/grafana
+#       volumes:
+#       - name: grafana-storage
+#         emptyDir: {}
+ 
+# ---
+ 
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: pg-grafana
+#   namespace: grafana-loki
+# spec:
+#   accessModes:
+#   - ReadWriteOnce
+#   resources:
+#     requests:
+#       storage: 1G
+
+ 
+# ---
+ 
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: pg-data-wh
+#   namespace: grafana-loki
+# spec:
+#   accessModes:
+#   - ReadWriteOnce
+#   resources:
+#     requests:
+#       storage: 1G
+
+# ---
+ 
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: grafana-storage
+#   namespace: grafana-loki
+# spec:
+#   accessModes:
+#   - ReadWriteOnce
+#   resources:
+#     requests:
+#       storage: 1G

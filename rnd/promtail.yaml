@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: promtail
+  namespace: promtail
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: promtail
+  template:
+    metadata:
+      labels:
+        app: promtail
+    spec:
+      volumes:
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: promtail-config
+        configMap:
+          name: promtail-config
+      containers:
+      - name: promtail
+        image: grafana/promtail:2.9.4
+        ports:
+        - containerPort: 3500
+        args:
+        - -config.file=/etc/promtail/config.yml
+        volumeMounts:
+        - name: varlog
+          mountPath: /var/log
+        - name: promtail-config
+          mountPath: /etc/promtail
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: promtail-config
+  namespace: promtail
+data:
+  config.yml: |
+    server:
+      http_listen_port: 9080
+      grpc_listen_port: 0
+
+    positions:
+      filename: /tmp/positions.yaml
+
+    scrape_configs:
+      - job_name: system
+        static_configs:
+        - targets:
+          - localhost
+        labels:
+          job: varlogs
+        pipeline_stages:
+          - match:
+              selector: '{job="varlogs"}'
+              stages:
+                - regex:
+                    expression: '^(?P<logsource>[^ ]*) (?P<log>[^ ]*) (?P<line>.*)$'
+                    source: log
+                    action: replace
+                - labels:
+                    job: '{job}'
+                    logsource: '{logsource}'
