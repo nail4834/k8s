@@ -220,18 +220,18 @@ spec:
 
 ---
 
-apiVersion: v1
-kind: Service
-metadata:
-  name: pg-data-wh
-  namespace: grafana-loki
-spec:
-  selector:
-    app: pg-data-wh
-  ports:
-  - protocol: TCP
-    port: 5488
-    targetPort: 5432
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: pg-data-wh
+#   namespace: grafana-loki
+# spec:
+#   selector:
+#     app: pg-data-wh
+#   ports:
+#   - protocol: TCP
+#     port: 5488
+#     targetPort: 5432
  
 ---
  
@@ -295,78 +295,139 @@ spec:
 
 ---
 
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: s3-pv
-spec:
-  capacity:
-    storage: 10Gi
-  accessModes:
-    - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
+# apiVersion: v1
+# kind: PersistentVolume
+# metadata:
+#   name: s3-pv
+# spec:
+#   capacity:
+#     storage: 10Gi
+#   accessModes:
+#     - ReadWriteOnce
+#   persistentVolumeReclaimPolicy: Retain
 
-  s3:
-    bucket: p-grafana-loki-bucket
-    access_key: YAKIA3ZEH6FXYXHZ7EADL
-    secret_key: MwtHaycNXF1ZdbHr62zAexPrHqMCuORdxxWFUWf4
-    prefix: grafana-loki  # Optional prefix for the bucket
-    existingBucket: true  # Set to true if the bucket already exists
+#   s3:
+#     bucket: p-grafana-loki-bucket
+#     access_key: YAKIA3ZEH6FXYXHZ7EADL
+#     secret_key: MwtHaycNXF1ZdbHr62zAexPrHqMCuORdxxWFUWf4
+#     prefix: grafana-loki  # Optional prefix for the bucket
+#     existingBucket: true  # Set to true if the bucket already exists
     
 ---
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: s3-pvc
+# spec:
+#   accessModes:
+#     - ReadWriteOnce
+#   resources:
+#     requests:
+#       storage: 10Gi
+---
+
+
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: pg-grafana
+#   namespace: grafana-loki
+# spec:
+#   accessModes:
+#   - ReadWriteOnce
+#   resources:
+#     requests:
+#       storage: 1G
+
+ 
+# ---
+ 
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: pg-data-wh
+#   namespace: grafana-loki
+# spec:
+#   accessModes:
+#   - ReadWriteOnce
+#   resources:
+#     requests:
+#       storage: 1G
+
+# ---
+ 
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: grafana-storage
+#   namespace: grafana-loki
+# spec:
+#   accessModes:
+#   - ReadWriteOnce
+#   resources:
+#     requests:
+#       storage: 1G
+
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: s3-pvc
+  name: pg-data-wh-pvc
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 10Gi
----
-
-
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: pg-grafana
-  namespace: grafana-loki
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
       storage: 1G
 
- 
 ---
- 
-apiVersion: v1
-kind: PersistentVolumeClaim
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: pg-data-wh
-  namespace: grafana-loki
 spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1G
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pg-data-wh
+  template:
+    metadata:
+      labels:
+        app: pg-data-wh
+    spec:
+      containers:
+        - name: pg-data-wh
+          image: postgres:15
+          env:
+            - name: POSTGRES_DB
+              value: "rk_db"
+            - name: POSTGRES_USER
+              value: "rajesh"
+            - name: POSTGRES_PASSWORD
+              value: "rajesh"
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: pg-data-wh-volume
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: pg-data-wh-volume
+          persistentVolumeClaim:
+            claimName: pg-data-wh-pvc
 
 ---
- 
 apiVersion: v1
-kind: PersistentVolumeClaim
+kind: Service
 metadata:
-  name: grafana-storage
-  namespace: grafana-loki
+  name: pg-data-wh-service
 spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1G
+  selector:
+    app: pg-data-wh
+  ports:
+    - protocol: TCP
+      port: 5488
+      targetPort: 5432
+  type: NodePort
 
 
 
